@@ -332,6 +332,195 @@ class StackManager:
         """List all defined stacks."""
         return list(self._stacks.values())
 
+    def verify_stack(
+        self,
+        expected_said: str,
+        name: str,
+        controller_aid: str,
+        constraints: Dict[str, str],
+    ) -> Tuple[bool, str]:
+        """
+        Verify that constraints produce the expected SAID.
+
+        This is the core tamper-detection mechanism. Given constraints,
+        recompute the SAID and compare to expected. If they differ,
+        the content has been modified.
+
+        Args:
+            expected_said: The SAID to verify against
+            name: Stack name
+            controller_aid: Controller AID
+            constraints: Dict of name -> version_spec
+
+        Returns:
+            (verified: bool, computed_said: str)
+        """
+        # Recompute SAIDs using same algorithm as define_stack
+        constraint_saids = []
+        for pkg_name, version_spec in constraints.items():
+            # Determine constraint type
+            if pkg_name == "python":
+                ctype = ConstraintType.PYTHON
+            elif pkg_name.startswith("system:"):
+                ctype = ConstraintType.SYSTEM
+                pkg_name = pkg_name.replace("system:", "")
+            elif pkg_name.startswith("binary:"):
+                ctype = ConstraintType.BINARY
+                pkg_name = pkg_name.replace("binary:", "")
+            else:
+                ctype = ConstraintType.PACKAGE
+
+            constraint_data = {
+                "name": pkg_name,
+                "type": ctype.value,
+                "spec": version_spec,
+                "stack": name,
+            }
+            constraint_said = compute_said(constraint_data)
+            constraint_saids.append(constraint_said)
+
+        # Compute stack SAID
+        stack_data = {
+            "name": name,
+            "constraints": sorted(constraint_saids),
+            "controller": controller_aid,
+        }
+        computed_said = compute_said(stack_data)
+
+        return (computed_said == expected_said, computed_said)
+
+    def verify_pyproject(
+        self,
+        content: str,
+        expected_said: Optional[str] = None,
+    ) -> Tuple[bool, Optional[str], Dict[str, str]]:
+        """
+        Verify a pyproject.toml matches its embedded SAID.
+
+        Parses the pyproject.toml, extracts constraints, recomputes SAID,
+        and verifies it matches the embedded SAID comment.
+
+        Args:
+            content: pyproject.toml content
+            expected_said: Optional SAID to verify against (uses embedded if not provided)
+
+        Returns:
+            (verified: bool, said: Optional[str], extracted_constraints: dict)
+        """
+        extracted = {}
+        embedded_said = None
+        stack_name = None
+        controller = None
+
+        for line in content.split("\n"):
+            # Extract SAID from header comment
+            if "# SAID:" in line and embedded_said is None:
+                embedded_said = line.split("# SAID:")[1].strip()
+
+            # Extract stack name
+            if "# Stack:" in line:
+                stack_name = line.split("# Stack:")[1].strip()
+
+            # Extract controller
+            if "# Controller:" in line:
+                controller = line.split("# Controller:")[1].strip()
+
+            # Extract Python version
+            if "requires-python" in line:
+                match = re.search(r'requires-python\s*=\s*"([^"]+)"', line)
+                if match:
+                    extracted["python"] = match.group(1)
+
+            # Extract dependencies
+            if line.strip().startswith('"') and ">=" in line or "==" in line or "<=" in line:
+                # Parse: "keri>=1.2.0",  # SAID: ...
+                match = re.search(r'"([^"]+)"', line)
+                if match:
+                    dep = match.group(1)
+                    # Split on first comparison operator
+                    for op in [">=", "<=", "==", ">", "<", "~="]:
+                        if op in dep:
+                            name, version = dep.split(op, 1)
+                            extracted[name] = f"{op}{version}"
+                            break
+
+        if not embedded_said and not expected_said:
+            return (False, None, extracted)
+
+        said_to_check = expected_said or embedded_said
+
+        if not stack_name or not controller:
+            return (False, said_to_check, extracted)
+
+        verified, computed = self.verify_stack(
+            expected_said=said_to_check,
+            name=stack_name,
+            controller_aid=controller,
+            constraints=extracted,
+        )
+
+        return (verified, computed, extracted)
+
+    def verify_requirements(
+        self,
+        content: str,
+        expected_said: Optional[str] = None,
+    ) -> Tuple[bool, Optional[str], Dict[str, str]]:
+        """
+        Verify a requirements.txt matches its embedded SAID.
+
+        Args:
+            content: requirements.txt content
+            expected_said: Optional SAID to verify against
+
+        Returns:
+            (verified: bool, said: Optional[str], extracted_constraints: dict)
+        """
+        extracted = {}
+        embedded_said = None
+        stack_name = None
+        controller = None
+
+        for line in content.split("\n"):
+            line = line.strip()
+
+            # Extract header comments
+            if line.startswith("#"):
+                if "SAID:" in line and embedded_said is None:
+                    embedded_said = line.split("SAID:")[1].strip()
+                elif "Stack:" in line:
+                    stack_name = line.split("Stack:")[1].strip()
+                elif "Controller:" in line:
+                    controller = line.split("Controller:")[1].strip()
+                continue
+
+            # Parse requirements
+            if not line or line.startswith("-"):
+                continue
+
+            # Remove inline comments
+            if "#" in line:
+                line = line.split("#")[0].strip()
+
+            # Parse: package>=version
+            for op in [">=", "<=", "==", ">", "<", "~="]:
+                if op in line:
+                    name, version = line.split(op, 1)
+                    extracted[name.strip()] = f"{op}{version.strip()}"
+                    break
+
+        if not embedded_said and not expected_said:
+            return (False, None, extracted)
+
+        said_to_check = expected_said or embedded_said
+
+        if not stack_name or not controller:
+            return (False, said_to_check, extracted)
+
+        # Requirements.txt doesn't include python version
+        # So we can't fully verify without it
+        return (False, said_to_check, extracted)
+
     def update_constraint(
         self,
         stack_said: str,

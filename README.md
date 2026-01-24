@@ -175,6 +175,110 @@ dependencies = [
 | Cross-Project Sync | Manual | SAID reference |
 | Reproducibility | Lockfile | SAID + controller chain |
 
+## Attack Scenarios (Tested)
+
+These scenarios are implemented as tests in `tests/test_attack_scenarios.py`:
+
+### 1. Tamper Detection
+
+**Traditional:** Someone edits `pyproject.toml` to change a version. No cryptographic way to detect.
+
+**Governed:** SAID verification fails immediately.
+
+```python
+# Verify pyproject.toml hasn't been modified
+verified, said, _ = sm.verify_pyproject(pyproject_content)
+if not verified:
+    raise SecurityError("Dependencies have been tampered with!")
+```
+
+### 2. Silent Version Drift
+
+**Traditional:** Dev has `keri==1.3.0`, prod has `keri==1.2.0`. Nobody notices.
+
+**Governed:** All environments verify against the same SAID.
+
+```python
+# All environments use same SAID
+CANONICAL_SAID = "EJhnw-FDaBvlhFCRAjTjxjJKBWx7vXEOITZYxYQD9g55"
+
+# Each environment verifies before deploy
+verified, _ = sm.verify_stack(
+    expected_said=CANONICAL_SAID,
+    name="myapp",
+    controller_aid="BOPS_TEAM",
+    constraints=current_constraints,
+)
+```
+
+### 3. Supply Chain Attack
+
+**Traditional:** Attacker injects malicious package or downgrades to vulnerable version.
+
+**Governed:** Injection or downgrade changes SAID, verification fails.
+
+```python
+# Security team's approved constraints
+approved = {"django": ">=4.2.0", "requests": ">=2.31.0"}
+
+# Attacker tries to inject or downgrade
+compromised = {"django": ">=4.2.0", "requests": ">=2.25.0", "evil-pkg": ">=1.0"}
+
+# Different constraints = different SAID
+assert compute_said(approved) != compute_said(compromised)
+```
+
+### 4. Unauthorized Modification
+
+**Traditional:** Junior dev changes version, git blame shows who but not authorization.
+
+**Governed:** Controller AID cryptographically bound. Unauthorized changes produce different SAID.
+
+```python
+# Only BSENIOR_ENGINEER_AID can produce this SAID
+stack = sm.define_stack(
+    name="company-stack",
+    controller_aid="BSENIOR_ENGINEER_AID",
+    constraints={"keri": ">=1.2.0"},
+)
+
+# Junior dev can't forge the SAID without the controller key
+```
+
+### 5. CI/CD Verification Workflow
+
+```python
+# In CI pipeline:
+APPROVED_SAID = os.environ["APPROVED_STACK_SAID"]  # From secure config
+
+# Load developer's pyproject.toml
+with open("pyproject.toml") as f:
+    content = f.read()
+
+# Verify before deploy
+verified, _, _ = sm.verify_pyproject(content, expected_said=APPROVED_SAID)
+if not verified:
+    sys.exit("DEPLOY BLOCKED: Dependencies don't match approved SAID")
+```
+
+## Verification API
+
+```python
+# Verify constraints produce expected SAID
+verified, computed = sm.verify_stack(
+    expected_said="EABCDxyz...",
+    name="my-project",
+    controller_aid="BMASTER_AID",
+    constraints={"python": ">=3.12", "keri": ">=1.2.0"},
+)
+
+# Verify pyproject.toml (parses and checks embedded SAID)
+verified, said, constraints = sm.verify_pyproject(pyproject_content)
+
+# Verify requirements.txt
+verified, said, constraints = sm.verify_requirements(requirements_content)
+```
+
 ## KERI Principles Applied
 
 This package follows Samuel Smith's KERI design principles:

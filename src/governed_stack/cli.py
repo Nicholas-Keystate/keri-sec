@@ -17,6 +17,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Optional
 
 from governed_stack import (
     StackManager,
@@ -120,13 +121,31 @@ def cmd_install(args):
 
     print(f"Installing stack: {stack.name} ({stack.said[:20]}...)")
 
+    # Determine venv path
+    venv_path = None
+    if args.venv:
+        if args.venv is True:
+            # Default venv path
+            venv_path = Path(".venv")
+        else:
+            venv_path = Path(args.venv)
+        print(f"Creating venv at: {venv_path}")
+
     if args.pip:
+        if venv_path:
+            print("Warning: --venv only works with UV, ignoring", file=sys.stderr)
         success, output = sm.install_with_pip(stack.said, upgrade=args.upgrade)
     else:
-        success, output = sm.install_with_uv(stack.said, upgrade=args.upgrade)
+        success, output = sm.install_with_uv(
+            stack.said,
+            upgrade=args.upgrade,
+            venv_path=venv_path,
+        )
 
     if success:
         print("Installation successful!")
+        if output:
+            print(output)
     else:
         print(f"Installation failed:\n{output}", file=sys.stderr)
 
@@ -215,6 +234,14 @@ def main():
     p_install.add_argument("--uv", action="store_true", help="Use UV (default)")
     p_install.add_argument("--pip", action="store_true", help="Use pip instead of UV")
     p_install.add_argument("--upgrade", "-U", action="store_true", help="Upgrade packages")
+    p_install.add_argument(
+        "--venv",
+        nargs="?",
+        const=True,
+        default=None,
+        metavar="PATH",
+        help="Create venv before install (default: .venv). Uses Python version from stack.",
+    )
     p_install.set_defaults(func=cmd_install)
 
     # generate

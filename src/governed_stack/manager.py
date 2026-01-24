@@ -663,14 +663,53 @@ class StackManager:
         self,
         stack_said: str,
         upgrade: bool = False,
+        venv_path: Optional[Path] = None,
     ) -> Tuple[bool, str]:
-        """Install stack dependencies using UV."""
+        """
+        Install stack dependencies using UV.
+
+        Args:
+            stack_said: Stack SAID to install
+            upgrade: Upgrade existing packages
+            venv_path: If provided, create venv and install there
+        """
         if not self.uv_path:
             return False, "UV not found. Install: curl -LsSf https://astral.sh/uv/install.sh | sh"
 
         stack = self._stacks.get(stack_said)
         if not stack:
             return False, f"Stack {stack_said} not found"
+
+        output_lines = []
+
+        # Create venv if requested
+        if venv_path:
+            venv_path = Path(venv_path)
+
+            # Get Python version from stack
+            python_constraint = stack.constraints.get("python")
+            python_version = None
+            if python_constraint:
+                # Extract version from constraint like ">=3.12"
+                import re
+                match = re.search(r"(\d+\.\d+)", python_constraint.version_spec)
+                if match:
+                    python_version = match.group(1)
+
+            # Create venv with UV
+            venv_cmd = [str(self.uv_path), "venv", str(venv_path)]
+            if python_version:
+                venv_cmd.extend(["--python", python_version])
+
+            try:
+                result = subprocess.run(venv_cmd, capture_output=True, text=True, timeout=60)
+                if result.returncode != 0:
+                    return False, f"Failed to create venv: {result.stderr}"
+                output_lines.append(f"Created venv at {venv_path}")
+                if python_version:
+                    output_lines.append(f"Python version: {python_version}")
+            except Exception as e:
+                return False, f"venv creation error: {e}"
 
         packages = [
             f"{c.name}{c.version_spec}"
@@ -679,16 +718,26 @@ class StackManager:
         ]
 
         if not packages:
-            return True, "No packages to install"
+            return True, "\n".join(output_lines + ["No packages to install"])
 
+        # Build install command
         cmd = [str(self.uv_path), "pip", "install"]
         if upgrade:
             cmd.append("--upgrade")
+
+        # If venv was created, target it
+        if venv_path:
+            cmd.extend(["--python", str(venv_path / "bin" / "python")])
+
         cmd.extend(packages)
 
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-            return result.returncode == 0, result.stdout + result.stderr
+            output_lines.append(result.stdout + result.stderr)
+            success = result.returncode == 0
+            if success and venv_path:
+                output_lines.append(f"\nActivate with: source {venv_path}/bin/activate")
+            return success, "\n".join(output_lines)
         except subprocess.TimeoutExpired:
             return False, "Timeout after 5 minutes"
         except Exception as e:

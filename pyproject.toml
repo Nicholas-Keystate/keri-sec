@@ -1,0 +1,82 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "governed-stack"
+version = "0.1.0"
+description = "KERI-governed dependency management - cryptographic source of truth for version constraints"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.12"
+authors = [
+    { name = "WebOfTrust", email = "info@gleif.org" },
+]
+keywords = [
+    "keri",
+    "dependencies",
+    "governance",
+    "version",
+    "uv",
+    "said",
+    "cryptographic",
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: System :: Installation/Setup",
+]
+dependencies = [
+    "keri>=1.2.0",
+    "hio>=0.6.14",
+    "packaging>=23.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/WebOfTrust/governed-stack"
+Documentation = "https://github.com/WebOfTrust/governed-stack#readme"
+Repository = "https://github.com/WebOfTrust/governed-stack"
+Issues = "https://github.com/WebOfTrust/governed-stack/issues"
+
+[project.scripts]
+governed-stack = "governed_stack.cli:main"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/governed_stack"]
+
+[tool.hatch.build.targets.wheel.sources]
+"src" = ""
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]

@@ -1,0 +1,218 @@
+# Governed Stack
+
+> **⚠️ HYPER-EXPERIMENTAL ⚠️**
+>
+> This package is in early development. The API may change without notice.
+> Use at your own risk. Not recommended for production use.
+
+KERI-governed dependency management - cryptographic source of truth for version constraints.
+
+## Problem
+
+Version truth fragmentation across your stack:
+
+```
+pyproject.toml:  requires-python = ">=3.10"
+CI workflow:     python-version: "3.12.1"
+README:          "Tested on Python 3.11+"
+Production:      Actually running 3.10.4
+Team Slack:      "Use 3.12, we need tomllib"
+```
+
+Five sources of "truth" → drift → bugs → security issues.
+
+## Solution
+
+**One cryptographic source of truth.**
+
+```python
+from governed_stack import StackManager, KERI_PRODUCTION_STACK
+
+sm = StackManager()
+stack = sm.define_stack(
+    name="my-project",
+    controller_aid="BMASTER_AID...",  # WHO can modify
+    constraints=KERI_PRODUCTION_STACK,
+    rationale="Production KERI deployment",
+)
+
+# Stack SAID: EABCDxyz... (cryptographic identifier)
+# Every constraint has its own SAID
+# Full audit trail of changes
+```
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   Stack Registry                        │
+│  Constraint SAIDs with controller AIDs and audit trail  │
+│  WHO approved? WHEN? WHY? → Cryptographic proof         │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│             StackManager                                │
+│  - define_stack() → creates SAIDs                       │
+│  - check_compliance() → verifies environment            │
+│  - generate_pyproject() → exports with SAID refs        │
+│  - install_with_uv() → fast installation                │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│              UV / pip                                   │
+│  Actually installs the governed versions                │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Key Insight:** UV/pip are EXECUTION tools. Governed Stack is the GOVERNANCE layer.
+
+## Installation
+
+```bash
+# ⚠️ HYPER-EXPERIMENTAL - API may change
+pip install governed-stack
+
+# Or with UV (recommended)
+uv pip install governed-stack
+```
+
+## Quick Start
+
+### CLI Usage
+
+```bash
+# Define a governed stack
+governed-stack define my-project \
+  --controller BMASTER_AID... \
+  --stack keri
+
+# Check compliance
+governed-stack check my-project
+
+# Install dependencies
+governed-stack install my-project
+
+# Generate pyproject.toml
+governed-stack generate my-project --pyproject
+```
+
+### Python API
+
+```python
+from governed_stack import StackManager, KERI_PRODUCTION_STACK
+
+# Create manager
+sm = StackManager()
+
+# Define a stack
+stack = sm.define_stack(
+    name="my-project",
+    controller_aid="BMASTER_AID...",
+    constraints={
+        "python": ">=3.12",
+        "keri": ">=1.2.0,<2.0.0",
+        "hio": ">=0.6.14",
+    },
+    rationale="Production KERI deployment",
+)
+
+print(f"Stack SAID: {stack.said}")
+# Stack SAID: EABCDxyz...
+
+# Check compliance
+result = sm.check_compliance(stack.said)
+print(f"Compliant: {result.compliant}")
+
+# Install if needed
+if not result.compliant:
+    success, output = sm.install_with_uv(stack.said)
+
+# Generate pyproject.toml
+toml = sm.generate_pyproject(stack.said)
+print(toml)
+```
+
+## Pre-defined Stacks
+
+| Stack | Description |
+|-------|-------------|
+| `MINIMAL_STACK` | Just Python + keri + hio |
+| `KERI_PRODUCTION_STACK` | Full KERI production dependencies |
+| `KERI_DEV_STACK` | Production + pytest, ruff, mypy |
+| `KGQL_STACK` | KERI + lark for query language |
+| `WITNESS_STACK` | KERI + aiohttp for witnesses |
+| `AI_ORCHESTRATOR_STACK` | KERI + anthropic, openai |
+
+## Generated Output
+
+```toml
+# GOVERNED STACK - Do not edit manually
+# Stack: my-project
+# SAID: EABCDxyz...
+# Controller: BMASTER_AID...
+# Generated: 2026-01-24T12:00:00+00:00
+
+[project]
+requires-python = ">=3.12"
+# Constraint SAID: EConstraint1...
+
+dependencies = [
+    "hio>=0.6.14",  # SAID: EConstraint2...
+    "keri>=1.2.0,<2.0.0",  # SAID: EConstraint3...
+]
+```
+
+## Comparison: Traditional vs Governed
+
+| Aspect | pyproject.toml / uv.lock | Governed Stack |
+|--------|--------------------------|----------------|
+| Source of Truth | File (can drift) | Cryptographic SAID |
+| Who Approved? | Git blame (mutable) | Controller AID (KEL) |
+| Audit Trail | Git history | Append-only chain |
+| Breaking Changes | Semver honor system | Enforced notice period |
+| Cross-Project Sync | Manual | SAID reference |
+| Reproducibility | Lockfile | SAID + controller chain |
+
+## KERI Principles Applied
+
+This package follows Samuel Smith's KERI design principles:
+
+1. **SAIDs for Content-Addressability** - Every constraint has a SAID derived from its content
+2. **Controller AIDs for Authorization** - Only the controller can modify stack constraints
+3. **Append-Only History** - Changes create new versions, never delete
+4. **Deterministic Serialization** - JSON with sorted keys ensures reproducible SAIDs
+5. **Blake3 for Performance** - Uses keripy's Diger with Blake3_256
+
+## Requirements
+
+- Python >= 3.12
+- keri >= 1.2.0
+- hio >= 0.6.14
+- libsodium (system dependency)
+
+### Installing libsodium
+
+```bash
+# macOS
+brew install libsodium
+
+# Ubuntu/Debian
+apt-get install libsodium-dev
+
+# Fedora
+dnf install libsodium-devel
+```
+
+## License
+
+Apache-2.0
+
+## Warning
+
+> **⚠️ HYPER-EXPERIMENTAL ⚠️**
+>
+> This package is in early development. The API WILL change.
+> Do not use in production without understanding the risks.
+> This is a research project exploring KERI-governed dependency management.

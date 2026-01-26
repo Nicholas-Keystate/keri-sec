@@ -80,3 +80,9 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
 ignore = ["E501"]
+
+[tool.governed-stack]
+# Self-governance: governed-stack governs itself
+stack_said = "ED3ZDxKbGqxMSWNKQmGYsO8kJD5HnWA8HYGIf3NXIk5L"
+owner_baid = "BAID_KERI_WORKSPACE"
+self_governance = true

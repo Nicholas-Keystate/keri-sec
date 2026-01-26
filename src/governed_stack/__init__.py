@@ -141,6 +141,29 @@ from governed_stack.streaming import (
     serialize_stack,
 )
 
+# TEL Anchoring (optional - requires KERI infrastructure)
+try:
+    from governed_stack.tel_anchoring import (
+        StackCredentialIssuer,
+        CredentialIssuanceResult,
+        get_issuer_from_session,
+        STACK_SCHEMA_SAID,
+        WORKSPACE_SCHEMA_SAID,
+    )
+    _TEL_AVAILABLE = True
+except ImportError:
+    _TEL_AVAILABLE = False
+    StackCredentialIssuer = None
+    CredentialIssuanceResult = None
+    get_issuer_from_session = None
+    STACK_SCHEMA_SAID = None
+    WORKSPACE_SCHEMA_SAID = None
+
+
+def tel_available() -> bool:
+    """Check if TEL anchoring is available."""
+    return _TEL_AVAILABLE
+
 __all__ = [
     # Manager
     "StackManager",
@@ -188,4 +211,11 @@ __all__ = [
     "MIME_TYPES",
     "stream_constraints",
     "serialize_stack",
+    # TEL Anchoring
+    "tel_available",
+    "StackCredentialIssuer",
+    "CredentialIssuanceResult",
+    "get_issuer_from_session",
+    "STACK_SCHEMA_SAID",
+    "WORKSPACE_SCHEMA_SAID",
 ]

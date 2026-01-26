@@ -454,10 +454,44 @@ workspace_said = "{workspace_stack.said}"
                 print(f"  Updated: {name} ({project_stack.said[:20]}...)")
 
             print(f"\n✓ Synced {len(projects)} projects to workspace governance")
+
+            # TEL anchoring if requested
+            if args.tel:
+                print("\nIssuing TEL-anchored credentials...")
+                try:
+                    from governed_stack import tel_available, get_issuer_from_session
+
+                    if not tel_available():
+                        print("  ⚠ TEL anchoring not available (missing KERI dependencies)")
+                    else:
+                        issuer = get_issuer_from_session()
+                        if not issuer:
+                            print("  ⚠ No KERI session found. Start ai-orchestrator or configure KERI.")
+                        else:
+                            can, reason = issuer.can_issue()
+                            if not can:
+                                print(f"  ⚠ Cannot issue: {reason}")
+                            else:
+                                # Issue workspace credential
+                                result = issuer.issue_workspace_credential(
+                                    workspace_name=f"{workspace.name}-workspace",
+                                    workspace_said=workspace_stack.said,
+                                    unified_constraints=unified,
+                                    project_saids=[p.said for p in [sm.get_stack_by_name(f"{proj['name']}-production") for proj in projects.values()] if p],
+                                )
+                                if result.success:
+                                    print(f"  ✓ Workspace credential: {result.credential_said}")
+                                    print(f"    Registry: {result.registry_said}")
+                                else:
+                                    print(f"  ⚠ Failed: {result.error}")
+                except Exception as e:
+                    print(f"  ⚠ TEL error: {e}")
+
     else:
         if conflicts:
             print("\nRun with --resolve to see unified constraints")
             print("Run with --sync to apply unified constraints to all projects")
+            print("Run with --sync --tel to also issue TEL-anchored credentials")
 
     return 0
 
@@ -736,6 +770,7 @@ def main():
     p_workspace.add_argument("--resolve", "-r", action="store_true", help="Show resolved constraints")
     p_workspace.add_argument("--sync", "-s", action="store_true", help="Apply resolved constraints to all projects")
     p_workspace.add_argument("--controller", "-c", help="Controller AID for workspace")
+    p_workspace.add_argument("--tel", action="store_true", help="Issue TEL-anchored credentials (requires KERI)")
     p_workspace.set_defaults(func=cmd_workspace)
 
     # define

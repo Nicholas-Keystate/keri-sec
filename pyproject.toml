@@ -82,7 +82,6 @@ select = ["E", "F", "W", "I"]
 ignore = ["E501"]
 
 [tool.governed-stack]
-# Self-governance: governed-stack governs itself
-stack_said = "ED3ZDxKbGqxMSWNKQmGYsO8kJD5HnWA8HYGIf3NXIk5L"
+stack_said = "EN_rNQh_Ag-Ar37RNeLH0xxFmqAqtS7pKtmvPiZYA1-S"
 owner_baid = "BAID_KERI_WORKSPACE"
-self_governance = true
+workspace_said = "EOco2uCpLgkkpADLeIRpJQHu5znktU16ZaHdUT3uU-i4"

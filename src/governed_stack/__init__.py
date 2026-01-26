@@ -168,6 +168,16 @@ except ImportError:
     STACK_SCHEMA_SAID = None
     WORKSPACE_SCHEMA_SAID = None
 
+# Environment Verification
+from governed_stack.verification import (
+    verify_environment,
+    verify_or_fail,
+    VerificationResult as EnvVerificationResult,
+    InstallationCredential,
+    PackageMismatch,
+    EnvironmentVerificationPlugin,
+)
+
 
 def tel_available() -> bool:
     """Check if TEL anchoring is available."""
@@ -228,4 +238,11 @@ __all__ = [
     "create_issuer_with_keri",
     "STACK_SCHEMA_SAID",
     "WORKSPACE_SCHEMA_SAID",
+    # Environment Verification
+    "verify_environment",
+    "verify_or_fail",
+    "EnvVerificationResult",
+    "InstallationCredential",
+    "PackageMismatch",
+    "EnvironmentVerificationPlugin",
 ]

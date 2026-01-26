@@ -1,0 +1,103 @@
+{
+  "$id": "ELockFile_GS_v1_SAID_PLACEHOLDER",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SAIDified Lock File",
+  "description": "Cryptographically verifiable dependency resolution",
+  "type": "object",
+  "version": "1.0.0",
+  "required": ["d", "v", "governed_by", "resolved_at", "python", "packages"],
+  "properties": {
+    "d": {
+      "type": "string",
+      "description": "Lock file SAID (self-addressing identifier)"
+    },
+    "v": {
+      "type": "string",
+      "const": "GS10JSON000000_",
+      "description": "Governed Stack lock file version"
+    },
+    "governed_by": {
+      "type": "string",
+      "description": "SAID of governing stack definition"
+    },
+    "resolved_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Resolution timestamp (ISO 8601)"
+    },
+    "resolver": {
+      "type": "string",
+      "description": "Resolver used (e.g., uv-0.5.0, pip-24.0)"
+    },
+    "python": {
+      "type": "object",
+      "required": ["version"],
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "Exact Python version"
+        },
+        "platform": {
+          "type": "string",
+          "description": "Platform identifier"
+        },
+        "implementation": {
+          "type": "string",
+          "enum": ["cpython", "pypy"],
+          "default": "cpython"
+        }
+      }
+    },
+    "packages": {
+      "type": "array",
+      "description": "Resolved packages in deterministic order (sorted by name)",
+      "items": {
+        "type": "object",
+        "required": ["name", "version"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Package name (PEP 503 normalized)"
+          },
+          "version": {
+            "type": "string",
+            "description": "Exact resolved version"
+          },
+          "wheel": {
+            "type": "string",
+            "description": "Wheel filename"
+          },
+          "wheel_said": {
+            "type": "string",
+            "description": "SAID of wheel content"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["pypi", "git", "local", "url"],
+            "description": "Package source"
+          },
+          "source_url": {
+            "type": "string",
+            "description": "Source URL (for git/url sources)"
+          },
+          "hashes": {
+            "type": "object",
+            "description": "Package hashes (for pip compatibility)",
+            "properties": {
+              "sha256": {"type": "string"}
+            }
+          },
+          "dependencies": {
+            "type": "array",
+            "description": "Direct dependencies of this package",
+            "items": {"type": "string"}
+          }
+        }
+      }
+    },
+    "constraints_hash": {
+      "type": "string",
+      "description": "Hash of input constraints (for cache invalidation)"
+    }
+  }
+}

@@ -733,6 +733,51 @@ def cmd_list(args):
     return 0
 
 
+def cmd_verify(args):
+    """Verify installed environment matches credential."""
+    from pathlib import Path
+    from governed_stack.verification import verify_environment
+
+    credential_path = Path(args.credential) if args.credential else None
+    venv_path = Path(args.venv) if args.venv else None
+
+    result = verify_environment(
+        credential_path=credential_path,
+        venv_path=venv_path,
+        strict=args.strict,
+    )
+
+    # Print results
+    print(f"Environment Verification")
+    print("=" * 50)
+    print(f"Credential SAID: {result.credential_said or '(none)'}")
+    print(f"Stack SAID: {result.stack_said or '(none)'}")
+    print(f"Lock SAID: {result.lock_said or '(none)'}")
+    print(f"TEL Status: {result.tel_status}")
+    print(f"Python Verified: {'Yes' if result.python_verified else 'No'}")
+    print(f"Packages Verified: {result.packages_verified}")
+    print()
+
+    if result.mismatches:
+        print("Mismatches:")
+        for m in result.mismatches:
+            if m.reason == "missing":
+                print(f"  [MISSING] {m.name}: expected {m.expected_version}")
+            elif m.reason == "version_mismatch":
+                print(f"  [MISMATCH] {m.name}: {m.actual_version} (expected {m.expected_version})")
+            elif m.reason == "extra":
+                print(f"  [EXTRA] {m.name}: {m.actual_version}")
+        print()
+
+    if result.verified:
+        print("VERIFIED: Environment matches installation credential")
+        return 0
+    else:
+        print(f"FAILED: {result.error}")
+        print("\nRun: governed-stack install <stack-said> --venv --credential")
+        return 1
+
+
 def main():
     """CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -816,6 +861,14 @@ def main():
     # list
     p_list = subparsers.add_parser("list", help="List defined stacks")
     p_list.set_defaults(func=cmd_list)
+
+    # verify - NEW
+    p_verify = subparsers.add_parser("verify", help="Verify installed environment matches credential")
+    p_verify.add_argument("--credential", "-c", help="Path to installation credential (default: .governed/installation.json)")
+    p_verify.add_argument("--venv", "-v", help="Path to venv (default: from credential or .venv)")
+    p_verify.add_argument("--strict", action="store_true", default=True, help="Fail on extra packages (default)")
+    p_verify.add_argument("--no-strict", action="store_false", dest="strict", help="Allow extra packages")
+    p_verify.set_defaults(func=cmd_verify)
 
     args = parser.parse_args()
 

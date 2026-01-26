@@ -82,6 +82,6 @@ select = ["E", "F", "W", "I"]
 ignore = ["E501"]
 
 [tool.governed-stack]
-stack_said = "EN_rNQh_Ag-Ar37RNeLH0xxFmqAqtS7pKtmvPiZYA1-S"
-owner_baid = "BAID_KERI_WORKSPACE"
-workspace_said = "EOco2uCpLgkkpADLeIRpJQHu5znktU16ZaHdUT3uU-i4"
+stack_said = "ECsfg7VD6EjGcTMv7I9nzsZIMila6prLhpU4CYfum1-n"
+owner_baid = "BAID_WORKSPACE"
+workspace_said = "EPRDHESlDDaz59P7ou-VkizAABNVH4K7T1RPz2aXKA-N"

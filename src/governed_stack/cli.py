@@ -236,6 +236,232 @@ def cmd_diff(args):
     return 1 if conflicts else 0
 
 
+def resolve_version_conflicts(constraints_by_project: Dict[str, Dict[str, str]]) -> Dict[str, str]:
+    """
+    Resolve version conflicts by taking the strictest constraint.
+
+    For >=X.Y, take the highest minimum.
+    For <=X.Y, take the lowest maximum.
+    For ==X.Y, conflict if different.
+    """
+    from packaging.specifiers import SpecifierSet
+    from packaging.version import Version
+
+    unified = {}
+
+    # Collect all versions for each package
+    package_specs: Dict[str, List[Tuple[str, str]]] = {}  # pkg -> [(project, spec), ...]
+    for project, constraints in constraints_by_project.items():
+        for pkg, spec in constraints.items():
+            if pkg not in package_specs:
+                package_specs[pkg] = []
+            package_specs[pkg].append((project, spec))
+
+    for pkg, specs in package_specs.items():
+        if len(specs) == 1:
+            unified[pkg] = specs[0][1]
+            continue
+
+        # Find strictest constraint
+        min_versions = []
+        for project, spec in specs:
+            # Extract version from spec like ">=3.12" or ">=1.2.0"
+            for op in [">=", ">", "=="]:
+                if spec.startswith(op):
+                    try:
+                        ver = Version(spec[len(op):])
+                        min_versions.append((ver, op, spec))
+                    except:
+                        pass
+                    break
+
+        if min_versions:
+            # Take highest minimum version
+            strictest = max(min_versions, key=lambda x: x[0])
+            unified[pkg] = strictest[2]
+        else:
+            # Fallback to first spec
+            unified[pkg] = specs[0][1]
+
+    return unified
+
+
+def cmd_workspace(args):
+    """Govern all projects in a workspace directory."""
+    workspace = Path(args.path) if args.path else Path(".")
+
+    if not workspace.is_dir():
+        print(f"Not a directory: {workspace}", file=sys.stderr)
+        return 1
+
+    # Find all projects with pyproject.toml
+    projects = {}
+    for pyproject in workspace.glob("*/pyproject.toml"):
+        project_name, constraints, governance = parse_pyproject(pyproject)
+        if constraints:
+            projects[pyproject.parent.name] = {
+                "path": pyproject,
+                "name": project_name or pyproject.parent.name,
+                "constraints": constraints,
+                "governance": governance,
+            }
+
+    if not projects:
+        print(f"No projects found in {workspace}")
+        return 1
+
+    print(f"Found {len(projects)} projects in workspace")
+    print("=" * 50)
+
+    # Collect all constraints
+    constraints_by_project = {name: p["constraints"] for name, p in projects.items()}
+
+    # Find conflicts
+    all_packages = set()
+    for constraints in constraints_by_project.values():
+        all_packages.update(constraints.keys())
+
+    conflicts = []
+    for pkg in sorted(all_packages):
+        specs = [(name, c.get(pkg)) for name, c in constraints_by_project.items() if pkg in c]
+        if len(specs) > 1:
+            unique_specs = set(s[1] for s in specs)
+            if len(unique_specs) > 1:
+                conflicts.append((pkg, specs))
+
+    if conflicts:
+        print(f"\n⚠ Found {len(conflicts)} version conflicts:")
+        for pkg, specs in conflicts:
+            print(f"  {pkg}:")
+            for project, spec in specs:
+                print(f"    {project}: {spec}")
+
+    # Resolve conflicts
+    if args.resolve or args.sync:
+        print("\nResolving conflicts (taking strictest constraint)...")
+        unified = resolve_version_conflicts(constraints_by_project)
+
+        # Show what changed
+        changes = []
+        for pkg, specs in conflicts:
+            new_spec = unified.get(pkg)
+            if new_spec:
+                for project, old_spec in specs:
+                    if old_spec != new_spec:
+                        changes.append((project, pkg, old_spec, new_spec))
+
+        if changes:
+            print("\nChanges to apply:")
+            for project, pkg, old, new in changes:
+                print(f"  {project}: {pkg} {old} → {new}")
+        else:
+            print("\nNo changes needed")
+
+        if args.sync:
+            # Apply changes to all projects
+            controller = args.controller or "BAID_WORKSPACE"
+            sm = get_stack_manager()
+
+            # Define unified workspace stack
+            workspace_stack = sm.define_stack(
+                name=f"{workspace.name}-workspace",
+                controller_aid=controller,
+                constraints=unified,
+                rationale="Unified workspace governance",
+            )
+
+            print(f"\nWorkspace Stack: {workspace_stack.said}")
+
+            # Update each project
+            for name, proj in projects.items():
+                pyproject = proj["path"]
+                project_constraints = proj["constraints"].copy()
+
+                # Update to unified versions
+                for pkg in project_constraints:
+                    if pkg in unified:
+                        project_constraints[pkg] = unified[pkg]
+
+                # Define project stack
+                project_stack = sm.define_stack(
+                    name=f"{proj['name']}-production",
+                    controller_aid=controller,
+                    constraints=project_constraints,
+                )
+
+                # Read current content
+                content = pyproject.read_text()
+                lines = content.split("\n")
+                new_lines = []
+                in_dependencies = False
+                skip_governance = False
+
+                for line in lines:
+                    # Update dependency versions
+                    if line.strip() == "dependencies = [":
+                        in_dependencies = True
+                        new_lines.append(line)
+                        continue
+
+                    if in_dependencies:
+                        if line.strip() == "]":
+                            in_dependencies = False
+                            new_lines.append(line)
+                            continue
+
+                        # Check if this line has a package we need to update
+                        for pkg, new_spec in unified.items():
+                            if pkg != "python" and f'"{pkg}' in line:
+                                # Replace the spec
+                                match = re.search(r'"([^"]+)"', line)
+                                if match:
+                                    old_dep = match.group(1)
+                                    new_dep = f"{pkg}{new_spec}"
+                                    line = line.replace(f'"{old_dep}"', f'"{new_dep}"')
+                                break
+                        new_lines.append(line)
+                        continue
+
+                    # Update requires-python
+                    if "requires-python" in line and "python" in unified:
+                        line = f'requires-python = "{unified["python"]}"'
+
+                    # Skip old governance section
+                    if line.strip() == "[tool.governed-stack]":
+                        skip_governance = True
+                        continue
+                    if skip_governance:
+                        if line.strip().startswith("["):
+                            skip_governance = False
+                        else:
+                            continue
+
+                    new_lines.append(line)
+
+                # Remove trailing empty lines
+                while new_lines and not new_lines[-1].strip():
+                    new_lines.pop()
+
+                # Add governance section
+                governance_section = f"""
+[tool.governed-stack]
+stack_said = "{project_stack.said}"
+owner_baid = "{controller}"
+workspace_said = "{workspace_stack.said}"
+"""
+                new_content = "\n".join(new_lines) + "\n" + governance_section
+                pyproject.write_text(new_content)
+                print(f"  Updated: {name} ({project_stack.said[:20]}...)")
+
+            print(f"\n✓ Synced {len(projects)} projects to workspace governance")
+    else:
+        if conflicts:
+            print("\nRun with --resolve to see unified constraints")
+            print("Run with --sync to apply unified constraints to all projects")
+
+    return 0
+
+
 def cmd_sync(args):
     """Update pyproject.toml with governance metadata."""
     pyproject = Path(args.path) / "pyproject.toml" if args.path else Path("pyproject.toml")
@@ -503,6 +729,14 @@ def main():
     p_sync.add_argument("--path", "-p", default=".", help="Project path (default: current dir)")
     p_sync.add_argument("--controller", "-c", help="Controller AID (optional)")
     p_sync.set_defaults(func=cmd_sync)
+
+    # workspace - NEW
+    p_workspace = subparsers.add_parser("workspace", help="Govern all projects in a directory")
+    p_workspace.add_argument("--path", "-p", default=".", help="Workspace path (default: current dir)")
+    p_workspace.add_argument("--resolve", "-r", action="store_true", help="Show resolved constraints")
+    p_workspace.add_argument("--sync", "-s", action="store_true", help="Apply resolved constraints to all projects")
+    p_workspace.add_argument("--controller", "-c", help="Controller AID for workspace")
+    p_workspace.set_defaults(func=cmd_workspace)
 
     # define
     p_define = subparsers.add_parser("define", help="Define a governed stack")

@@ -76,6 +76,13 @@ Handler System (Transit-inspired):
 
 __version__ = "0.1.0"
 
+# KERI Package Signing - Publisher identity for verification
+# To verify this package:
+#   1. Download: pip download governed-stack --no-deps
+#   2. Get signature: curl -O https://github.com/WebOfTrust/governed-stack/releases/download/v0.1.0/governed_stack-0.1.0.sig.json
+#   3. Verify: keri-git-said codesign verify governed_stack-0.1.0-py3-none-any.whl --credential governed_stack-0.1.0.sig.json
+PUBLISHER_AID = "EFyO5GKXB6XgzhuvRFkOojvQOPDsa3_IndeXFhZcYnjL"
+
 from governed_stack.manager import (
     StackManager,
     ConstraintType,

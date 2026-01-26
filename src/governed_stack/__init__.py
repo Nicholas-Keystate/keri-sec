@@ -147,6 +147,7 @@ try:
         StackCredentialIssuer,
         CredentialIssuanceResult,
         get_issuer_from_session,
+        create_issuer_with_keri,
         STACK_SCHEMA_SAID,
         WORKSPACE_SCHEMA_SAID,
     )
@@ -156,6 +157,7 @@ except ImportError:
     StackCredentialIssuer = None
     CredentialIssuanceResult = None
     get_issuer_from_session = None
+    create_issuer_with_keri = None
     STACK_SCHEMA_SAID = None
     WORKSPACE_SCHEMA_SAID = None
 
@@ -216,6 +218,7 @@ __all__ = [
     "StackCredentialIssuer",
     "CredentialIssuanceResult",
     "get_issuer_from_session",
+    "create_issuer_with_keri",
     "STACK_SCHEMA_SAID",
     "WORKSPACE_SCHEMA_SAID",
 ]

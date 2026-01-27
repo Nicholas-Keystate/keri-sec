@@ -49,7 +49,7 @@ from governed_stack.keri.registry import (
     FractureReport,
 )
 
-# DAID resolver for refactoring-safe imports
+# SAIDRef for refactoring-safe imports
 from keri_runtime import (
     resolve,
     register_module,
@@ -57,7 +57,7 @@ from keri_runtime import (
     list_bindings,
     get_binding,
     verify_content,
-    DAIDBinding,
+    SAIDRefBinding,
 )
 
 __all__ = [
@@ -76,12 +76,12 @@ __all__ = [
     "reset_registry",
     "KeriConsumer",
     "FractureReport",
-    # DAID resolver
+    # SAIDRef (SAID-based module references)
     "resolve",
     "register_module",
     "deprecate",
     "list_bindings",
     "get_binding",
     "verify_content",
-    "DAIDBinding",
+    "SAIDRefBinding",
 ]

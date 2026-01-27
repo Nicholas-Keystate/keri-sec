@@ -44,8 +44,20 @@ from governed_stack.keri.registry import (
     register_keri_consumer,
     get_registered_consumers,
     check_for_fractures,
+    reset_registry,
     KeriConsumer,
     FractureReport,
+)
+
+# DAID resolver for refactoring-safe imports
+from keri_runtime import (
+    resolve,
+    register_module,
+    deprecate,
+    list_bindings,
+    get_binding,
+    verify_content,
+    DAIDBinding,
 )
 
 __all__ = [
@@ -61,6 +73,15 @@ __all__ = [
     "register_keri_consumer",
     "get_registered_consumers",
     "check_for_fractures",
+    "reset_registry",
     "KeriConsumer",
     "FractureReport",
+    # DAID resolver
+    "resolve",
+    "register_module",
+    "deprecate",
+    "list_bindings",
+    "get_binding",
+    "verify_content",
+    "DAIDBinding",
 ]

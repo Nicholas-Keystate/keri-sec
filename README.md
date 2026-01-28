@@ -31,7 +31,7 @@ from governed_stack import StackManager, KERI_PRODUCTION_STACK
 sm = StackManager()
 stack = sm.define_stack(
     name="my-project",
-    controller_aid="BMASTER_AID...",  # WHO can modify
+    controller_aid="EMASTER_AID...",  # WHO can modify
     constraints=KERI_PRODUCTION_STACK,
     rationale="Production KERI deployment",
 )
@@ -68,6 +68,46 @@ stack = sm.define_stack(
 
 **Key Insight:** UV/pip are EXECUTION tools. Governed Stack is the GOVERNANCE layer.
 
+## KERI Runtime (Integrated)
+
+Governed Stack includes a complete KERI runtime for projects using KERI infrastructure:
+
+```python
+from governed_stack.keri import get_runtime, get_infrastructure
+
+# Get KERI runtime
+runtime = get_runtime()
+if runtime.available:
+    # Use runtime.hby, runtime.rgy for KERI operations
+    pass
+
+# Or get infrastructure directly
+infra = get_infrastructure()
+hab = infra.hby.makeHab(name="my-identity")
+```
+
+### Features
+
+- **Singleton Infrastructure**: One `Habery`, one `Regery`, shared across all consumers
+- **Fracture Detection**: Warns if multiple Habery instances are detected
+- **HIO Doer Lifecycle**: Proper resource management via enter/exit/abort
+- **SAIDRef**: SAID-based module references that survive refactoring
+
+### SAIDRef (Refactoring Support)
+
+```python
+from governed_stack.keri import register_module, resolve
+
+# Register a function
+said = register_module("my_package.module", "my_function", alias="my_func")
+
+# Resolve by SAID or alias (survives file moves/renames)
+func = resolve("my_func")
+func = resolve(said[:12])  # Prefix match also works
+```
+
+**Note:** Previously available as standalone `keri-runtime` package, now integrated into governed-stack for unified KERI development.
+
 ## Installation
 
 ```bash
@@ -85,7 +125,7 @@ uv pip install governed-stack
 ```bash
 # Define a governed stack
 governed-stack define my-project \
-  --controller BMASTER_AID... \
+  --controller EMASTER_AID... \
   --stack keri
 
 # Check compliance
@@ -109,7 +149,7 @@ sm = StackManager()
 # Define a stack
 stack = sm.define_stack(
     name="my-project",
-    controller_aid="BMASTER_AID...",
+    controller_aid="EMASTER_AID...",
     constraints={
         "python": ">=3.12",
         "keri": ">=1.2.0,<2.0.0",
@@ -151,7 +191,7 @@ print(toml)
 # GOVERNED STACK - Do not edit manually
 # Stack: my-project
 # SAID: EABCDxyz...
-# Controller: BMASTER_AID...
+# Controller: EMASTER_AID...
 # Generated: 2026-01-24T12:00:00+00:00
 
 [project]
@@ -206,7 +246,7 @@ CANONICAL_SAID = "EJhnw-FDaBvlhFCRAjTjxjJKBWx7vXEOITZYxYQD9g55"
 verified, _ = sm.verify_stack(
     expected_said=CANONICAL_SAID,
     name="myapp",
-    controller_aid="BOPS_TEAM",
+    controller_aid="EOPS_TEAM",
     constraints=current_constraints,
 )
 ```
@@ -235,10 +275,10 @@ assert compute_said(approved) != compute_said(compromised)
 **Governed:** Controller AID cryptographically bound. Unauthorized changes produce different SAID.
 
 ```python
-# Only BSENIOR_ENGINEER_AID can produce this SAID
+# Only ESENIOR_ENGINEER_AID can produce this SAID
 stack = sm.define_stack(
     name="company-stack",
-    controller_aid="BSENIOR_ENGINEER_AID",
+    controller_aid="ESENIOR_ENGINEER_AID",
     constraints={"keri": ">=1.2.0"},
 )
 
@@ -364,7 +404,7 @@ register_handler("docker-image", DockerImageHandler())
 # Now use it in stack definitions
 stack = sm.define_stack(
     name="containerized-app",
-    controller_aid="BMASTER...",
+    controller_aid="EMASTER...",
     constraints={
         "python": ">=3.12",
         "docker-image:myapp": "latest",  # Uses DockerImageHandler
@@ -377,6 +417,8 @@ stack = sm.define_stack(
 - Python >= 3.12
 - keri >= 1.2.0
 - hio >= 0.6.14
+- keri-governance >= 0.1.0
+- packaging >= 23.0
 - libsodium (system dependency)
 
 ### Installing libsodium
@@ -396,10 +438,3 @@ dnf install libsodium-devel
 
 Apache-2.0
 
-## Warning
-
-> **⚠️ HYPER-EXPERIMENTAL ⚠️**
->
-> This package is in early development. The API WILL change.
-> Do not use in production without understanding the risks.
-> This is a research project exploring KERI-governed dependency management.

@@ -10,7 +10,7 @@ readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.12"
 authors = [
-    { name = "WebOfTrust", email = "info@gleif.org" },
+    { name = "Nicholas-Keystate" },
 ]
 keywords = [
     "keri",
@@ -34,8 +34,10 @@ classifiers = [
     "Topic :: System :: Installation/Setup",
 ]
 dependencies = [
-    "keri-runtime>=0.1.0",  # KERI singleton (includes keri, hio)
+    "keri>=1.2.0",
+    "hio>=0.6.14",
     "packaging>=23.0",
+    "keri-governance>=0.1.0",
 ]
 
 [project.optional-dependencies]
@@ -46,10 +48,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/WebOfTrust/governed-stack"
-Documentation = "https://github.com/WebOfTrust/governed-stack#readme"
-Repository = "https://github.com/WebOfTrust/governed-stack"
-Issues = "https://github.com/WebOfTrust/governed-stack/issues"
+Homepage = "https://github.com/Nicholas-Keystate/governed-stack"
+Documentation = "https://github.com/Nicholas-Keystate/governed-stack#readme"
+Repository = "https://github.com/Nicholas-Keystate/governed-stack"
+Issues = "https://github.com/Nicholas-Keystate/governed-stack/issues"
 
 [project.scripts]
 governed-stack = "governed_stack.cli:main"

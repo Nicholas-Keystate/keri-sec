@@ -293,6 +293,82 @@ class TestPluginFinish:
 
 
 # ---------------------------------------------------------------------------
+# TEL-enabled mode
+# ---------------------------------------------------------------------------
+
+
+class TestPluginTelEnabled:
+    def test_tel_config_defaults_false(self):
+        cfg = KeriTestConfig()
+        assert cfg.tel_enabled is False
+        assert cfg.schema_said is None
+
+    def test_tel_config_from_dict(self):
+        d = {"tel_enabled": True, "schema_said": "ESchema123"}
+        cfg = KeriTestConfig.from_dict(d)
+        assert cfg.tel_enabled is True
+        assert cfg.schema_said == "ESchema123"
+
+    def test_finish_pushes_to_deck_when_tel_enabled(self, sample_project):
+        from hio.help import Deck
+        input_deck = Deck()
+
+        config = KeriTestConfig(
+            suite_name="tel-suite",
+            source_dirs=["src"],
+            test_dirs=["tests"],
+            project_root=str(sample_project),
+            tel_enabled=True,
+            schema_said="EFakeSchema",
+        )
+        plugin = KeriTestPlugin(config, input_deck=input_deck)
+        plugin.configure()
+        plugin.collector.record("test_a", passed=True, failed=False, skipped=False)
+        cred = plugin.finish(timestamp=FIXED_TIMESTAMP)
+
+        # Request should be on the deck
+        req = input_deck.pull(emptive=True)
+        assert req is not None
+        assert req.credential.said == cred.said
+        assert req.suite_gaid == plugin.suite.gaid
+
+    def test_finish_no_push_without_deck(self, sample_project):
+        config = KeriTestConfig(
+            suite_name="tel-suite",
+            source_dirs=["src"],
+            test_dirs=["tests"],
+            project_root=str(sample_project),
+            tel_enabled=True,
+        )
+        plugin = KeriTestPlugin(config)  # No deck
+        plugin.configure()
+        plugin.collector.record("test_a", passed=True, failed=False, skipped=False)
+        # Should not raise even with tel_enabled=True but no deck
+        cred = plugin.finish(timestamp=FIXED_TIMESTAMP)
+        assert cred.said.startswith("E")
+
+    def test_finish_no_push_when_tel_disabled(self, sample_project):
+        from hio.help import Deck
+        input_deck = Deck()
+
+        config = KeriTestConfig(
+            suite_name="no-tel-suite",
+            source_dirs=["src"],
+            test_dirs=["tests"],
+            project_root=str(sample_project),
+            tel_enabled=False,
+        )
+        plugin = KeriTestPlugin(config, input_deck=input_deck)
+        plugin.configure()
+        plugin.collector.record("test_a", passed=True, failed=False, skipped=False)
+        plugin.finish(timestamp=FIXED_TIMESTAMP)
+
+        # Nothing should be on the deck
+        req = input_deck.pull(emptive=True)
+        assert req is None
+
+
+# ---------------------------------------------------------------------------
 # Path overlap helper
 # ---------------------------------------------------------------------------
 

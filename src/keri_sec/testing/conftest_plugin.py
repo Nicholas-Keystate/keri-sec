@@ -55,6 +55,9 @@ class KeriTestConfig:
     fail_closed: bool = True
     min_coverage_percent: Optional[float] = None
     runner_aid: Optional[str] = None
+    tel_enabled: bool = False
+    schema_said: Optional[str] = None
+    policy_schema_said: Optional[str] = None
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> KeriTestConfig:
@@ -68,6 +71,9 @@ class KeriTestConfig:
             fail_closed=d.get("fail_closed", True),
             min_coverage_percent=d.get("min_coverage_percent"),
             runner_aid=d.get("runner_aid"),
+            tel_enabled=d.get("tel_enabled", False),
+            schema_said=d.get("schema_said"),
+            policy_schema_said=d.get("policy_schema_said"),
         )
 
 
@@ -154,11 +160,15 @@ class KeriTestPlugin:
         engine: Optional[PolicyEngine] = None,
         previous_tree: Optional[TestSmithTree] = None,
         previous_run_said: Optional[str] = None,
+        input_deck: Optional[Any] = None,
+        output_deck: Optional[Any] = None,
     ):
         self._config = config
         self._collector = ResultCollector()
         self._previous_tree = previous_tree
         self._previous_run_said = previous_run_said
+        self._input_deck = input_deck
+        self._output_deck = output_deck
 
         # Build current tree
         self._tree = TestSmithTree.build(
@@ -304,6 +314,10 @@ class KeriTestPlugin:
     ) -> TestExecutionCredential:
         """Issue a TestExecutionCredential for this session.
 
+        When ``tel_enabled`` is True and an ``input_deck`` is attached,
+        the credential is also pushed to the TestAttestationDoer for
+        real TEL anchoring. Otherwise, the SAID-only fast path is used.
+
         Args:
             coverage_percent: Coverage percentage if available
             timestamp: Override timestamp for deterministic tests
@@ -327,6 +341,18 @@ class KeriTestPlugin:
             results=results,
             timestamp=timestamp,
         )
+
+        # TEL anchoring: push to Doer if enabled
+        if self._config.tel_enabled and self._input_deck is not None:
+            from keri_sec.testing.test_attestation_doer import TestAttestationRequest
+            request = TestAttestationRequest(
+                request_id=f"session-{self._credential.said[:12]}",
+                credential=self._credential,
+                suite_gaid=self._suite.gaid,
+                suite_sn=self._suite.current_sn,
+            )
+            self._input_deck.push(request)
+
         return self._credential
 
 
